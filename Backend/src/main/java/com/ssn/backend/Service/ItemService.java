@@ -40,7 +40,9 @@ public class ItemService {
 		return response;
 	}
 	
-	public Item claim(String itemId, User user) {
+	public Item claim(String itemId, User user) 
+	{
+		System.out.println(user.getMobile());
 	    return itemRepository.findById(itemId)
 	        .map(item -> {
 	            item.setStatus(Status.CLAIMED);

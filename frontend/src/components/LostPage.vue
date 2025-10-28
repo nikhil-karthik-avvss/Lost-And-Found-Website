@@ -40,9 +40,7 @@
 
         <select v-model="location" class="input">
           <option disabled value="">Select Location</option>
-          <option v-for="loc in locations" :key="loc" :value="loc">
-            {{ loc }}
-          </option>
+          <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
         </select>
 
         <input type="file" accept="image/*" @change="onFileSelect" class="input" />
@@ -58,17 +56,13 @@
 
       <!-- ✅ Item Cards -->
       <div 
-        v-for="(item, index) in filteredItems" 
+        v-for="item in filteredItems" 
         :key="item.id" 
         class="card item-card"
         @click="openModal(item)"
       >
-
-        <span class="badge">LOST</span>
-
-        <!-- ✅ Posted by You Tag -->
+        <span class="badge">{{ item.status }}</span>
         <span class="owner-badge" v-if="isPostedByYou(item)">You</span>
-
         <img :src="item.imagePath" class="item-img" />
         <h4>{{ item.itemName }}</h4>
         <p class="loc">📍 {{ item.location }}</p>
@@ -91,6 +85,37 @@
         <p><b>Email:</b> {{ selectedItem.postedBy.email }}</p>
         <p><b>Mobile:</b> {{ selectedItem.postedBy.mobile }}</p>
 
+        <!-- ✅ Owner Actions -->
+        <div v-if="isPostedByYou(selectedItem)" class="owner-actions">
+          
+          <!-- 🔽 Added dropdown to select who found -->
+          <select v-model="selectedFoundUser" class="input" v-if="selectedItem.status !== 'FOUND'">
+            <option value="">Select who found</option>
+            <option 
+              v-for="u in users"
+              :key="u.id"
+              :value="JSON.stringify(u)"
+            >
+              {{ u.name }} ({{ u.userName }})
+            </option>
+          </select>
+
+          <button 
+            v-if="selectedItem.status !== 'FOUND'" 
+            class="claim-btn" 
+            @click="markAsFound"
+          >
+            ✅ Mark as Found
+          </button>
+          
+          <button class="delete-btn" @click="deleteItem">🗑 Delete</button>
+        </div>
+
+        <!-- ✅ Notify Finder (for others) -->
+        <div v-else class="notify-section">
+          <button class="notify-btn" @click="notifyFinder">🔔 Notify Owner</button>
+        </div>
+
         <button class="close-btn" @click="closeModal">Close</button>
       </div>
     </div>
@@ -107,40 +132,34 @@ import { useRouter } from "vue-router"
 
 const router = useRouter()
 
-// UI State
 const showForm = ref(false)
 const loading = ref(false)
 const message = ref("")
 const lostItems = ref([])
+const users = ref([])
 const selectedItem = ref(null)
+const selectedFoundUser = ref("")   // ✅ added
 
-// Search & Filter
 const searchText = ref("")
 const filterLocation = ref("")
 
-// Form fields
 const itemName = ref("")
 const description = ref("")
 const location = ref("")
 const imageFile = ref(null)
 const previewImage = ref(null)
 
-// Dropdown values
 const locations = [
   "LIBRARY","MAIN_CANTEEN","ASHWINS","RISHABHS","NILAVAN","GENTS_HOSTEL",
   "LADIES_HOSTEL","GROUND","CSE","IT","MECH","CIVIL","CHEM","BIO",
   "ECE","EEE","SNU","CLOCK_TOWER","FOUNTAIN"
 ]
 
-// ✅ Your ImgBB Key
 const IMGBB_API_KEY = "92ab366fb3260affed4dbbecd2434b29"
-
 
 function goTo(page) { router.push(`/${page}`) }
 function logout() { router.push("/logout") }
 
-
-// ✅ Filtered Items
 const filteredItems = computed(() => {
   return lostItems.value.filter(item =>
     (searchText.value === "" || item.itemName.toLowerCase().includes(searchText.value.toLowerCase())) &&
@@ -148,43 +167,36 @@ const filteredItems = computed(() => {
   )
 })
 
+function formatTime(ts) { return new Date(ts).toLocaleString() }
+function isPostedByYou(item) { return item.postedBy?.userName === sessionStorage.getItem("username") }
 
-// ✅ Format time
-function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleString()
+async function openModal(item) { 
+  selectedItem.value = item
+  if (isPostedByYou(item)) {
+    const res = await api.get("/auth/users")   // ✅ same as FoundPage
+    users.value = res.data.users.map(u => ({
+      id: u.id,
+      userName: u.userName,
+      name: u.name,
+      mobile: u.mobile,
+      email: u.email
+    }))
+  }
 }
-
-
-// ✅ Check if posted by you
-function isPostedByYou(item) {
-  return item.postedBy?.userName === sessionStorage.getItem("username")
-}
-
-
-// ✅ Modal
-function openModal(item) { selectedItem.value = item }
 function closeModal() { selectedItem.value = null }
 
-
-// ✅ Image select
 function onFileSelect(e) {
   imageFile.value = e.target.files[0]
   previewImage.value = URL.createObjectURL(imageFile.value)
 }
 
-
-// ✅ Upload to ImgBB
 async function uploadImage() {
-  const formData = new FormData()
-  formData.append("image", imageFile.value)
-
-  const url = `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`
-  const res = await api.post(url, formData)
+  const fd = new FormData()
+  fd.append("image", imageFile.value)
+  const res = await api.post(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, fd)
   return res.data.data.url
 }
 
-
-// ✅ Submit Lost Item
 async function submitLostItem() {
   const postedBy = {
     userName: sessionStorage.getItem("username"),
@@ -193,46 +205,33 @@ async function submitLostItem() {
     name: sessionStorage.getItem("name")
   }
 
-  if (!postedBy.userName) {
-    message.value = "⚠ Login required"
-    router.push("/login")
-    return
-  }
-
   if (!itemName.value || !description.value || !location.value || !imageFile.value) {
     message.value = "⚠ Please fill all details"
     return
   }
 
   loading.value = true
-
   try {
-    const imageUrl = await uploadImage()
-
+    const img = await uploadImage()
     const body = {
       itemName: itemName.value,
       description: description.value,
       timestamp: new Date().toISOString(),
       status: "LOST",
       location: location.value,
-      imagePath: imageUrl,
+      imagePath: img,
       postedBy
     }
-
     await api.post("/items/post", body)
-
     fetchLostItems()
     resetForm()
   } 
   catch (err) {
-    message.value = "❌ Post failed"
+    message.value = "❌ Failed"
   }
-
   loading.value = false
 }
 
-
-// ✅ Reset form
 function cancelForm() { resetForm() }
 function resetForm() {
   itemName.value = ""
@@ -244,15 +243,49 @@ function resetForm() {
   showForm.value = false
 }
 
-
-// ✅ Fetch items
 async function fetchLostItems() {
+  const res = await api.get("/items/lost")
+  lostItems.value = res.data.items || []
+}
+
+async function markAsFound() {
+  if (!selectedFoundUser.value) {
+    alert("⚠ Please select who found it")
+    return
+  }
+
+  const foundBy = JSON.parse(selectedFoundUser.value)
+  await api.post(`/items/claim/${selectedItem.value.id}`,  foundBy )
+  fetchLostItems()
+  closeModal()
+}
+
+async function deleteItem() {
+  if (!confirm("Delete this item?")) return
+  await api.delete(`/items/delete/${selectedItem.value.id}`)
+  fetchLostItems()
+  closeModal()
+}
+
+async function notifyFinder() {
   try {
-    const res = await api.get("/items/lost")
-    lostItems.value = res.data.items || []
-  } 
-  catch (err) {
-    console.error("Failed to fetch items", err)
+    const ownerUser = selectedItem.value.postedBy?.userName
+    if (!ownerUser) { alert("Owner username not found!"); return }
+    if (!confirm("Send notification to Owner?")) return
+
+    const notifier = {
+      userName: sessionStorage.getItem("username"),
+      name: sessionStorage.getItem("name"),
+      email: sessionStorage.getItem("email"),
+      mobile: sessionStorage.getItem("mobile")
+    }
+
+    const payload = { item: selectedItem.value, notifier }
+    await api.post(`/items/notify/${ownerUser}`, payload)
+    alert(`✅ Notification sent to ${selectedItem.value.postedBy.name}`)
+  } catch (err) {
+    console.error(err)
+    alert("❌ Failed to send notification")
   }
 }
 
@@ -270,7 +303,6 @@ onMounted(fetchLostItems)
   flex-direction: column;
 }
 
-/* ✅ Navbar */
 .navbar {
   height: 70px;
   width: 100%;
@@ -295,7 +327,6 @@ onMounted(fetchLostItems)
   border-radius: 8px;
 }
 
-/* ✅ Grid */
 .grid-container {
   display: grid;
   gap: 22px;
@@ -303,7 +334,6 @@ onMounted(fetchLostItems)
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-/* ✅ Card */
 .card {
   background: #fff;
   padding: 16px;
@@ -314,14 +344,12 @@ onMounted(fetchLostItems)
 }
 .card:hover { transform: translateY(-2px); }
 
-/* Add Card */
 .add-card {
   display: flex; align-items: center; justify-content: center;
   flex-direction: column; font-weight: 600;
 }
 .plus { font-size: 50px; line-height: 0; color: var(--primary); }
 
-/* ✅ Item Card */
 .item-card { position: relative; cursor: pointer; }
 .item-img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; }
 
@@ -348,7 +376,6 @@ onMounted(fetchLostItems)
   font-size: 12px;
 }
 
-/* Form */
 .input { width: 100%; padding: 10px; margin-top: 8px; border-radius: 8px; border: 1.4px solid #ccd; }
 .area { height: 60px; resize: none; }
 .preview { width: 100%; margin-top: 10px; border-radius: 8px; }
@@ -357,13 +384,13 @@ onMounted(fetchLostItems)
 .btn { flex: 1; background: var(--primary); color: white; border-radius: 8px; padding: 10px; }
 .cancel-btn { flex: 1; background: #ddd; border-radius: 8px; padding: 10px; }
 
-/* ✅ Modal */
 .modal-overlay {
   position: fixed;
   top:0; left:0;
   width:100%; height:100%;
   background: rgba(0,0,0,0.6);
   display:flex; justify-content:center; align-items:center;
+  z-index: 9999;
 }
 .modal-card {
   background:white;
@@ -377,14 +404,12 @@ onMounted(fetchLostItems)
   border-radius: 10px;
   margin-bottom: 12px;
 }
-.close-btn {
-  background: var(--primary);
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px;
-  border-radius: 8px;
-  color:white;
-}
+.owner-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.claim-btn { background: #009933; color: white; padding: 10px; border-radius: 8px; }
+.delete-btn { background: #d00000; color: white; padding: 10px; border-radius: 8px; }
+.notify-section { margin-top: 16px; text-align: center; }
+.notify-btn { background: #ff9800; color: white; padding: 10px 18px; border-radius: 8px; }
+.close-btn { background: var(--primary); width: 100%; margin-top: 10px; padding: 8px; border-radius: 8px; color:white; }
 
 @keyframes fadeIn { from {opacity:0} to {opacity:1} }
 </style>

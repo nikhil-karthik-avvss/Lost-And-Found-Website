@@ -117,6 +117,13 @@
 
         </div>
 
+        <!-- ✅ Notify Button for Non-Owners -->
+        <div v-else class="notify-section">
+          <button class="notify-btn" @click="notifyOwner">
+            🔔 Notify Founder
+          </button>
+        </div>
+
         <button class="close-btn" @click="closeModal">Close</button>
       </div>
     </div>
@@ -255,7 +262,7 @@ async function markAsClaimed() {
   }
   const claimedBy = JSON.parse(selectedClaimUser.value);
 
-  await api.post(`/items/claim/${selectedItem.value.id}`, { claimedBy });
+  await api.post(`/items/claim/${selectedItem.value.id}`,  claimedBy );
   fetchItems();
   closeModal();
 }
@@ -266,6 +273,40 @@ async function deleteItem() {
   fetchItems();
   closeModal();
 }
+
+async function notifyOwner() {
+  try {
+    const ownerUser = selectedItem.value.postedBy?.userName;
+
+    if (!ownerUser) {
+      alert("Owner username not found!");
+      return;
+    }
+
+    if (!confirm("Send notification to this Founder?")) return;
+
+    // ✅ include notifier details
+    const notifier = {
+      userName: sessionStorage.getItem("username"),
+      name: sessionStorage.getItem("name"),
+      email: sessionStorage.getItem("email"),
+      mobile: sessionStorage.getItem("mobile"),
+    };
+
+    const payload = {
+      item: selectedItem.value,
+      notifier,  // send both
+    };
+
+    // ✅ call backend
+    await api.post(`/items/notify/${ownerUser}`, payload);
+    alert(`✅ Notification sent to ${selectedItem.value.postedBy.name}`);
+  } catch (err) {
+    console.error(err);
+    alert("❌ Failed to send notification");
+  }
+}
+
 
 function resetForm() {
   itemName.value = "";
@@ -282,7 +323,6 @@ onMounted(fetchItems);
 
 
 <style scoped>
-/* ✅ Same styling as given by you, with CLAIMED updates */
 .lost-container {
   width: 100%;
   min-height: 100vh;
@@ -459,6 +499,25 @@ onMounted(fetchItems);
   color: white;
   border-radius: 8px;
 }
+
+.notify-section {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+.notify-btn {
+  background: #ff9800;
+  color: white;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.25s;
+}
+.notify-btn:hover {
+  background: #e68900;
+}
+
 .area { height: 60px; }
 .preview { width: 100%; margin-top: 10px; border-radius: 8px; }
 </style>
