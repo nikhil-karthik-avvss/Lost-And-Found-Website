@@ -1,0 +1,125 @@
+:root {
+  --primary: #1d4ed8;
+  --primary-dark: #1e40af;
+  --bg-gradient: linear-gradient(to bottom right, #3b82f6, #1e40af);
+  --text-dark: #1f2937;
+  --radius: 12px;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+.auth-container {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.auth-title {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--primary-dark);
+}
+
+label {
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 14px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  margin-top: 6px;
+  margin-bottom: 16px;
+  border-radius: var(--radius);
+  border: 1.8px solid #cbd5e1;
+  font-size: 15px;
+  outline: none;
+  transition: 0.25s;
+}
+
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(29,78,216,0.25);
+}
+
+.password-toggle {
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  position: absolute;
+  color: #475569;
+}
+
+.btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.link {
+  color: var(--primary-dark);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.error-msg {
+  text-align: center;
+  margin-top: 10px;
+  color: red;
+  font-weight: 600;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.field-label {
+  text-align: left;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.password-field {
+  position: relative;
+}
+
+.subtitle {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.auth-card {
+  text-align: center;
+}
