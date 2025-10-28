@@ -7,7 +7,7 @@
       <ul class="nav-links">
         <li class="active">Lost Items</li>
         <li @click="goTo('found')">Found Items</li>
-        <li @click="goTo('chat')">Chat</li>
+        <li @click="goTo('claimed')">Claimed Items</li>
         <li class="logout" @click="logout">Logout</li>
       </ul>
     </nav>
@@ -305,7 +305,7 @@ onMounted(fetchLostItems)
 
 .navbar {
   height: 70px;
-  width: 100%;
+  width: 100;
   background: var(--primary);
   display: flex;
   align-items: center;

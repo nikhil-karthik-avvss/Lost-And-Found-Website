@@ -7,7 +7,7 @@
       <ul class="nav-links">
         <li @click="goTo('lost')">Lost Items</li>
         <li class="active">Found Items</li>
-        <li @click="goTo('chat')">Chat</li>
+        <li @click="goTo('claimed')">Claimed Items</li>
         <li class="logout" @click="logout">Logout</li>
       </ul>
     </nav>
@@ -303,7 +303,7 @@ async function notifyOwner() {
     alert(`✅ Notification sent to ${selectedItem.value.postedBy.name}`);
   } catch (err) {
     console.error(err);
-    alert("❌ Failed to send notification");
+    alert("Failed to send notification");
   }
 }
 
@@ -333,7 +333,7 @@ onMounted(fetchItems);
 
 .navbar {
   background: var(--primary);
-  width: 100%;
+  width: 100;
   height: 70px;
   padding: 0 32px;
   display: flex;

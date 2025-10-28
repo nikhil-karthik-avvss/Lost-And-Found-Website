@@ -6,7 +6,7 @@
       <ul class="nav-links">
         <li @click="goTo('lost')">Lost Items</li>
         <li @click="goTo('found')">Found Items</li>
-        <li @click="goTo('chat')">Chat</li>
+        <li @click="goTo('claimed')">Claimed Items</li>
         <li class="logout" @click="logout">Logout</li>
       </ul>
     </nav>
