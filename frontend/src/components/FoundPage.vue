@@ -24,15 +24,15 @@
     <!-- ✅ Items Grid -->
     <div class="grid-container">
 
-      <!-- ✅ Add New -->
+      <!-- ✅ Add New Item Card -->
       <div v-if="!showForm" class="card add-card" @click="showForm = true">
         <div class="plus">+</div>
         <p>Add Found Item</p>
       </div>
 
-      <!-- ✅ Add Form -->
+      <!-- ✅ Add Form Card -->
       <div v-else class="card form-card">
-        <h3>Add Found Item</h3>
+        <h3 class="form-title">Add Found Item</h3>
 
         <input class="input" v-model="itemName" placeholder="Item Name" />
         <textarea class="input area" v-model="description" placeholder="Description"></textarea>
@@ -42,7 +42,7 @@
           <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
         </select>
 
-        <input type="file" class="input" @change="onFileSelect" />
+        <input type="file" accept="image/*" @change="onFileSelect" class="input" />
         <img v-if="previewImage" :src="previewImage" class="preview"/>
 
         <div class="form-actions">
@@ -53,7 +53,7 @@
         <p v-if="message" class="msg">{{ message }}</p>
       </div>
 
-      <!-- ✅ Items -->
+      <!-- ✅ Item Cards -->
       <div 
         v-for="item in filteredItems" 
         :key="item.id" 
@@ -74,7 +74,7 @@
 
     </div>
 
-    <!-- ✅ Modal -->
+    <!-- ✅ Item Detail Modal -->
     <div v-if="selectedItem" class="modal-overlay" @click.self="closeModal">
       <div class="modal-card">
         <img :src="selectedItem.imagePath" class="modal-img" />
@@ -117,7 +117,7 @@
 
         </div>
 
-        <!-- ✅ Notify Button for Non-Owners -->
+        <!-- ✅ Notify Section (Non-Owner) -->
         <div v-else class="notify-section">
           <button class="notify-btn" @click="notifyOwner">
             🔔 Notify Founder
@@ -139,23 +139,21 @@ import { useRouter } from "vue-router";
 
 const router = useRouter();
 
-// UI state
+// Reactive state
 const showForm = ref(false);
 const loading = ref(false);
 const message = ref("");
 const foundItems = ref([]);
 const users = ref([]);
 const selectedItem = ref(null);
+const selectedClaimUser = ref("");
 
-// form fields
+// form
 const itemName = ref("");
 const description = ref("");
 const location = ref("");
 const imageFile = ref(null);
 const previewImage = ref(null);
-
-// claim user
-const selectedClaimUser = ref("");
 
 // filter
 const searchText = ref("");
@@ -176,21 +174,15 @@ const filteredItems = computed(() =>
   )
 );
 
-function formatTime(ts) {
-  return new Date(ts).toLocaleString();
-}
 function goTo(p) { router.push(`/${p}`); }
 function logout() { router.push("/logout"); }
-function isPostedByYou(item) {
-  return item.postedBy?.userName === sessionStorage.getItem("username");
-}
-function closeModal() {
-  selectedItem.value = null;
-}
+
+function formatTime(ts) { return new Date(ts).toLocaleString(); }
+function isPostedByYou(item) { return item.postedBy?.userName === sessionStorage.getItem("username"); }
+function closeModal() { selectedItem.value = null; }
 
 async function openModal(item) {
   selectedItem.value = item;
-
   if (isPostedByYou(item)) {
     const res = await api.get("/auth/users");
     users.value = res.data.users.map(u => ({
@@ -211,16 +203,16 @@ function onFileSelect(e) {
 async function uploadImage() {
   const fd = new FormData();
   fd.append("image", imageFile.value);
-
   const res = await api.post(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, fd);
   return res.data.data.url;
 }
 
 async function submitItem() {
   if (!itemName.value || !description.value || !location.value || !imageFile.value) {
-    message.value = "⚠ Fill all fields";
+    message.value = "⚠ Please fill all fields";
     return;
   }
+
   loading.value = true;
 
   const postedBy = {
@@ -232,21 +224,24 @@ async function submitItem() {
   };
 
   try {
-    const img = await uploadImage();
+    const imageUrl = await uploadImage();
     await api.post("/items/post", {
       itemName: itemName.value,
       description: description.value,
-      location: location.value,
-      status: "FOUND",
       timestamp: new Date().toISOString(),
-      imagePath: img,
+      status: "FOUND",
+      location: location.value,
+      imagePath: imageUrl,
       postedBy
     });
-    fetchItems();
+
+    await fetchItems();
     resetForm();
-  } catch {
-    message.value = "❌ Failed";
+  } catch (err) {
+    console.error(err);
+    message.value = "❌ Post failed";
   }
+
   loading.value = false;
 }
 
@@ -257,18 +252,17 @@ async function fetchItems() {
 
 async function markAsClaimed() {
   if (!selectedClaimUser.value) {
-    alert("Select user");
+    alert("Select claimed user");
     return;
   }
   const claimedBy = JSON.parse(selectedClaimUser.value);
-
-  await api.post(`/items/claim/${selectedItem.value.id}`,  claimedBy );
+  await api.post(`/items/claim/${selectedItem.value.id}`, claimedBy);
   fetchItems();
   closeModal();
 }
 
 async function deleteItem() {
-  if (!confirm("Delete item?")) return;
+  if (!confirm("Delete this item?")) return;
   await api.delete(`/items/delete/${selectedItem.value.id}`);
   fetchItems();
   closeModal();
@@ -277,15 +271,13 @@ async function deleteItem() {
 async function notifyOwner() {
   try {
     const ownerUser = selectedItem.value.postedBy?.userName;
-
     if (!ownerUser) {
-      alert("Owner username not found!");
+      alert("Owner not found!");
       return;
     }
 
-    if (!confirm("Send notification to this Founder?")) return;
+    if (!confirm("Send notification to founder?")) return;
 
-    // ✅ include notifier details
     const notifier = {
       userName: sessionStorage.getItem("username"),
       name: sessionStorage.getItem("name"),
@@ -293,20 +285,17 @@ async function notifyOwner() {
       mobile: sessionStorage.getItem("mobile"),
     };
 
-    const payload = {
+    await api.post(`/items/notify/${ownerUser}`, {
       item: selectedItem.value,
-      notifier,  // send both
-    };
+      notifier,
+    });
 
-    // ✅ call backend
-    await api.post(`/items/notify/${ownerUser}`, payload);
     alert(`✅ Notification sent to ${selectedItem.value.postedBy.name}`);
   } catch (err) {
     console.error(err);
-    alert("Failed to send notification");
+    alert("❌ Failed to send notification");
   }
 }
-
 
 function resetForm() {
   itemName.value = "";
@@ -323,6 +312,7 @@ onMounted(fetchItems);
 
 
 <style scoped>
+/* ✅ Styling identical to previous functional version */
 .lost-container {
   width: 100%;
   min-height: 100vh;
@@ -331,6 +321,7 @@ onMounted(fetchItems);
   flex-direction: column;
 }
 
+/* Navbar */
 .navbar {
   background: var(--primary);
   width: 100;
@@ -339,184 +330,49 @@ onMounted(fetchItems);
   display: flex;
   align-items: center;
 }
-.nav-logo {
-  color: white;
-  margin-right: auto;
-  font-size: 22px;
-  font-weight: 700;
-}
-.nav-links {
-  display: flex;
-  gap: 28px;
-  list-style: none;
-}
-.nav-links li {
-  color: #e8f0ff;
-  cursor: pointer;
-  font-weight: 600;
-}
-.nav-links li.active {
-  border-bottom: 3px solid #fff;
-  color: #fff;
+.nav-logo { color: white; margin-right: auto; font-size: 22px; font-weight: 700; }
+.nav-links { display: flex; gap: 28px; list-style: none; }
+.nav-links li { color: #e8f0ff; cursor: pointer; font-weight: 600; }
+.nav-links li.active { border-bottom: 3px solid #fff; color: #fff; }
+
+/* Search bar */
+.search-filter-bar { display: flex; gap: 14px; padding: 10px 22px; }
+.input, .search-input, .filter-select {
+  border: 1.4px solid #ccd; padding: 10px; border-radius: 8px; width: 100%;
 }
 
-.search-filter-bar {
-  display: flex;
-  gap: 14px;
-  padding: 10px 22px;
-}
-.input,
-.search-input,
-.filter-select {
-  border: 1.4px solid #ccd;
-  padding: 10px;
-  border-radius: 8px;
-  width: 100%;
-}
-
-.grid-container {
-  padding: 20px;
-  display: grid;
-  gap: 22px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-}
-
-.card {
-  padding: 16px;
-  border-radius: 10px;
-  background: #fff;
-  text-align: center;
-  box-shadow: 0 3px 10px rgba(0,0,0,.15);
-  transition: .25s;
-}
+/* Grid + Cards */
+.grid-container { padding: 20px; display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card { background: #fff; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.15); transition: .25s; }
 .card:hover { transform: translateY(-2px); }
+.add-card { display: flex; align-items: center; justify-content: center; flex-direction: column; font-weight: 600; }
+.plus { font-size: 50px; color: var(--primary); }
 
-.item-card {
-  position: relative;
-  cursor: pointer;
-}
-.item-card.claimed {
-  opacity: .6;
-}
-.item-img {
-  width: 100%;
-  height: 180px;
-  object-fit: cover;
-  border-radius: 8px;
-}
+.item-card { position: relative; cursor: pointer; }
+.item-card.claimed { opacity: .6; }
+.item-img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; }
+.badge { position: absolute; top: 6px; right: 6px; color: white; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+.found-badge { background: #1ea300; }
+.claimed-badge { background: #555; }
+.owner-badge { position: absolute; left: 6px; top: 6px; padding: 4px 8px; font-size: 11px; border-radius: 6px; font-weight: 700; background: #007c23; color: white; }
 
-.badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-.found-badge {
-  background: #1ea300;
-}
-.claimed-badge {
-  background: #555;
-}
+/* Buttons */
+.form-actions { display: flex; gap: 10px; margin-top: 12px; }
+.btn { flex: 1; background: var(--primary); color: white; border-radius: 8px; padding: 10px; }
+.cancel-btn { flex: 1; background: #ddd; border-radius: 8px; padding: 10px; }
 
-.owner-badge {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  padding: 4px 8px;
-  font-size: 11px;
-  border-radius: 6px;
-  font-weight: 700;
-  background: #007c23;
-  color: white;
-}
+/* Modal */
+.modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.6); display:flex; justify-content:center; align-items:center; }
+.modal-card { width: 400px; background: white; padding: 16px; border-radius: 14px; }
+.modal-img { border-radius: 10px; width: 100%; margin-bottom: 12px; }
+.owner-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.claim-btn { background: #009933; color: white; padding: 10px; border-radius: 8px; }
+.delete-btn { background: #d00000; color: white; padding: 10px; border-radius: 8px; }
+.close-btn { background: var(--primary); width: 100%; margin-top: 10px; padding: 10px; color: white; border-radius: 8px; }
 
-.form-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-}
-.btn {
-  flex: 1;
-  background: var(--primary);
-  color: white;
-  border-radius: 8px;
-  padding: 10px;
-}
-.cancel-btn {
-  flex: 1;
-  background: #ddd;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.modal-overlay {
-  position: fixed;
-  top:0; left:0;
-  width:100%; height:100%;
-  background: rgba(0,0,0,.6);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
-.modal-card {
-  width: 400px;
-  background: white;
-  padding: 16px;
-  border-radius: 14px;
-}
-.modal-img {
-  border-radius: 10px;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.owner-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 20px;
-}
-.claim-btn {
-  background: #009933;
-  color: white;
-  padding: 10px;
-  border-radius: 8px;
-}
-.delete-btn {
-  background: #d00000;
-  color: white;
-  padding: 10px;
-  border-radius: 8px;
-}
-.close-btn {
-  background: var(--primary);
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  color: white;
-  border-radius: 8px;
-}
-
-.notify-section {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-.notify-btn {
-  background: #ff9800;
-  color: white;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.25s;
-}
-.notify-btn:hover {
-  background: #e68900;
-}
+.notify-section { margin-top: 16px; display: flex; justify-content: center; }
+.notify-btn { background: #ff9800; color: white; border-radius: 8px; padding: 10px 18px; font-weight: 600; cursor: pointer; transition: 0.25s; }
+.notify-btn:hover { background: #e68900; }
 
 .area { height: 60px; }
 .preview { width: 100%; margin-top: 10px; border-radius: 8px; }
