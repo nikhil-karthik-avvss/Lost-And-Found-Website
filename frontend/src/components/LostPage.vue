@@ -155,7 +155,7 @@ const locations = [
   "ECE","EEE","SNU","CLOCK_TOWER","FOUNTAIN"
 ]
 
-const IMGBB_API_KEY = "92ab366fb3260affed4dbbecd2434b29"
+const IMGBB_API_KEY = "KEY"
 
 function goTo(page) { router.push(`/${page}`) }
 function logout() { router.push("/logout") }
